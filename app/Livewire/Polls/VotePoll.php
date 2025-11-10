@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Polls;
 
+use App\Events\VoteUpdated;
 use Livewire\Component;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -17,9 +18,11 @@ class VotePoll extends Component
     public $selectedOption;
     public $hasVoted = false;
     public $voteMessage = '';
-
+    protected $listeners = ['refreshPoll'];
+    public $pollId;
     public function mount($pollId)
     {
+        $this->pollId = $pollId;
         $this->poll = Poll::with('options')->findOrFail($pollId);
         $this->options = $this->poll->options;
 
@@ -33,34 +36,33 @@ class VotePoll extends Component
             })
             ->exists();
 
-        if ($this->hasVoted) {
-            $this->voteMessage = 'You have already voted. Here are the live results.';
-           $this->dispatch('vote-success',  $this->voteMessage);
-        }
+        // if ($this->hasVoted) {
+        //     $this->voteMessage = 'You have already voted. Here are the live results.';
+        //    $this->dispatch('vote-success',  $this->voteMessage);
+        // }
     }
 
     public function getDeviceId()
     {
-        if (!session()->has('device_id')) {
-            session(['device_id' => Str::uuid()->toString()]);
-        }
+        // if (!session()->has('device_id')) {
+        // }
+        session(['device_id' => Str::uuid()->toString()]);
         return session('device_id');
-
     }
 
     public function vote()
     {
-        if ($this->hasVoted) {
-            $this->voteMessage = 'You have already voted.';
-            $this->dispatch('vote-success',  $this->voteMessage);
-            return;
-        }
+        // if ($this->hasVoted) {
+        //     $this->voteMessage = 'You have already voted.';
+        //     $this->dispatch('vote-success',  $this->voteMessage);
+        //     return;
+        // }
 
-        if (!$this->selectedOption) {
-            $this->voteMessage = 'Please select an option before voting.';
-            $this->dispatch('vote-success', $this->voteMessage);
-            return;
-        }
+        // if (!$this->selectedOption) {
+        //     $this->voteMessage = 'Please select an option before voting.';
+        //     $this->dispatch('vote-success', $this->voteMessage);
+        //     return;
+        // }
 
         $ip = request()->ip();
         $deviceId = $this->getDeviceId();
@@ -79,6 +81,7 @@ class VotePoll extends Component
 
         // Refresh options to show live results
         $this->options = $this->poll->fresh()->options;
+        broadcast(new VoteUpdated($this->poll->id))->toOthers();
 
         // Notify user (Livewire 4)
         $this->dispatch('vote-success', 'Your vote has been successfully recorded!');
@@ -87,5 +90,12 @@ class VotePoll extends Component
     public function render()
     {
         return view('livewire.polls.vote-poll');
+    }
+    public function refreshPoll($pollId)
+    {
+        if ($this->poll->id == $pollId) {
+            $this->poll->refresh();
+            $this->options = $this->poll->options;
+        }
     }
 }
